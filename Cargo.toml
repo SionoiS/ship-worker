@@ -12,3 +12,4 @@ rand = "0.7"
 rand_xoshiro = "0.4"
 nalgebra = "0.21"
 procedural-generation = {path = "../procedural-generation"}
+sphere-points = {path = "../sphere-points"}

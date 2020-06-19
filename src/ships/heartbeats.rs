@@ -117,7 +117,9 @@ impl System {
             if *missed_heartbeat > 5 {
                 let message = Message::Delete(ship_id);
 
-                self.connexion.send(message);
+                self.connexion
+                    .send(message)
+                    .expect("SpatialOS connexion terminated");
             }
         } else {
             self.entities_missed_hearbeat.insert(ship_id, 1);
@@ -141,7 +143,9 @@ impl System {
 
         let message = Message::CommandRequest(CommandRequest::Heartbeat(ship_id));
 
-        self.connexion.send(message);
+        self.connexion
+            .send(message)
+            .expect("SpatialOS connexion terminated");
     }
 
     fn calculate_frame_rate(&mut self) {

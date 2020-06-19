@@ -1,28 +1,41 @@
 use crate::id_types::{DatabaseId, Module};
 use std::time::Duration;
 
-mod heartbeats;
+mod database;
 mod id_types;
 mod modules;
-mod positions;
+mod ships;
 mod spatial_os;
 
 fn main() {
     let mut handles = vec![];
 
-    let (handle, connexion) = spatial_os::connexion::System::init();
+    let (handle, spatial_os) = spatial_os::connexion::System::init();
     handles.push(handle);
 
-    let (handle, system) = heartbeats::System::init(100, 30_000, connexion.clone());
+    let (handle, database) = database::firestore::System::init();
     handles.push(handle);
 
-    let (handle, system, positions) = positions::System::init(100, 900_000, connexion);
+    let (handle, system, ids) = ships::identifications::System::init(100);
     handles.push(handle);
 
-    /* let (cooldown_handle, cooldown_sender, cooldown_shared) =
-        modules::cooldowns::System::init(1000);
-    handles.push(cooldown_handle);
+    let (handle, system, exploration) = ships::exploration::System::init(100);
+    handles.push(handle);
 
+    let (handle, system) = ships::heartbeats::System::init(100, 30_000, spatial_os.clone());
+    handles.push(handle);
+
+    let (handle, system, positions) =
+        ships::positions::System::init(100, 900_000, spatial_os, database);
+    handles.push(handle);
+
+    let (handle, system, cooldowns) = modules::cooldowns::System::init(1000);
+    handles.push(handle);
+
+    let (handle, system) = modules::sensors::System::init(100, positions, cooldowns, system);
+    handles.push(handle);
+
+    /*
     let sender_clone = mpsc::Sender::clone(&cooldown_system_sender);
     let arc_clone = Arc::clone(&cooldown_system_shared);
 
