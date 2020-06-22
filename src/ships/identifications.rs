@@ -1,4 +1,4 @@
-use crate::id_types::Ship;
+use crate::id_types::{Ship, User};
 use std::collections::HashMap;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
@@ -7,32 +7,28 @@ use std::thread;
 use std::thread::JoinHandle;
 
 pub enum SystemMessage {
-    AddComponent(Ship, Identifier),
-    UpdateComponent(Ship, Identifier),
+    AddComponent(Ship, User),
+    UpdateComponent(Ship, User),
     RemoveComponent(Ship),
 }
-
-pub struct Identifier;
-
-type ConcurrentHashMap = Arc<RwLock<HashMap<Ship, Identifier>>>;
 
 pub struct System {
     channel: Receiver<SystemMessage>,
 
-    ids: ConcurrentHashMap,
+    identifiers: Arc<Identifiers>,
 }
 
 impl System {
-    pub fn init(capacity: usize) -> (JoinHandle<()>, Sender<SystemMessage>, ConcurrentHashMap) {
+    pub fn init(capacity: usize) -> (JoinHandle<()>, Sender<SystemMessage>, Arc<Identifiers>) {
         let (tx, rx) = mpsc::channel();
 
         let mut system = Self {
             channel: rx,
 
-            ids: Arc::new(RwLock::new(HashMap::with_capacity(capacity))),
+            identifiers: Arc::new(Identifiers::init(capacity)),
         };
 
-        let arc = Arc::clone(&system.ids);
+        let arc = Arc::clone(&system.identifiers);
 
         let handle = thread::spawn(move || {
             system.update_loop();
@@ -44,28 +40,48 @@ impl System {
     fn update_loop(&mut self) {
         while let Ok(result) = self.channel.recv() {
             match result {
-                SystemMessage::AddComponent(id, data) => self.add_component(id, data),
-                SystemMessage::UpdateComponent(id, data) => self.update_component(id, data),
-                SystemMessage::RemoveComponent(id) => self.remove_component(id),
+                SystemMessage::AddComponent(id, data) => self.identifiers.add(&id, &data),
+                SystemMessage::UpdateComponent(id, data) => self.identifiers.add(&id, &data),
+                SystemMessage::RemoveComponent(id) => self.identifiers.remove(&id),
             }
         }
     }
+}
 
-    fn add_component(&mut self, id: Ship, data: Identifier) {
-        if let Ok(mut hash_map) = self.ids.write() {
-            hash_map.insert(id, data);
+pub struct Identifiers {
+    data: RwLock<HashMap<Ship, User>>,
+}
+
+impl Identifiers {
+    fn init(capacity: usize) -> Self {
+        Self {
+            data: RwLock::new(HashMap::with_capacity(capacity)),
         }
     }
 
-    fn update_component(&mut self, id: Ship, data: Identifier) {
-        if let Ok(mut hash_map) = self.ids.write() {
-            hash_map.insert(id, data);
+    fn add(&self, ship_id: &Ship, asteroid: &User) {
+        if let Ok(mut hash_map) = self.data.write() {
+            hash_map.insert(*ship_id, *asteroid);
         }
     }
 
-    fn remove_component(&mut self, id: Ship) {
-        if let Ok(mut hash_map) = self.ids.write() {
-            hash_map.remove(&id);
+    fn remove(&self, ship_id: &Ship) {
+        if let Ok(mut hash_map) = self.data.write() {
+            hash_map.remove(ship_id);
+        }
+    }
+
+    pub fn read(&self, ship_id: &Ship) -> Option<User> {
+        let user = self.data.read();
+
+        let user = match user {
+            Ok(user) => user,
+            Err(_) => return None,
+        };
+
+        match user.get(ship_id) {
+            Some(user) => Some(*user),
+            None => None,
         }
     }
 }

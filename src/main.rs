@@ -1,8 +1,6 @@
-use crate::id_types::{DatabaseId, Module};
-use std::time::Duration;
-
 mod database;
 mod id_types;
+mod inventory;
 mod modules;
 mod ships;
 mod spatial_os;
@@ -16,23 +14,44 @@ fn main() {
     let (handle, database) = database::firestore::System::init();
     handles.push(handle);
 
-    let (handle, system, ids) = ships::identifications::System::init(100);
+    let (handle, _id_system, identifiers) = ships::identifications::System::init(100);
     handles.push(handle);
 
-    let (handle, system, exploration) = ships::exploration::System::init(100);
+    let (handle, _exploration_system, asteroids) = ships::exploration::System::init(100);
     handles.push(handle);
 
-    let (handle, system) = ships::heartbeats::System::init(100, 30_000, spatial_os.clone());
+    let (handle, _heartbeat_system) =
+        ships::heartbeats::System::init(100, 30_000, spatial_os.clone());
     handles.push(handle);
 
-    let (handle, system, positions) =
-        ships::positions::System::init(100, 900_000, spatial_os, database);
+    let (handle, _positions_system, positions) =
+        ships::positions::System::init(100, 900_000, spatial_os.clone(), database);
     handles.push(handle);
 
-    let (handle, system, cooldowns) = modules::cooldowns::System::init(1000);
+    let (handle, cooldown_system, cooldowns) = modules::cooldowns::System::init(1000);
     handles.push(handle);
 
-    let (handle, system) = modules::sensors::System::init(100, positions, cooldowns, system);
+    let (handle, _sensors_system) =
+        modules::sensors::System::init(100, positions, cooldowns.clone(), cooldown_system.clone());
+    handles.push(handle);
+
+    let (handle, _scanners_system) = modules::scanners::System::init(
+        100,
+        spatial_os.clone(),
+        cooldown_system.clone(),
+        asteroids.clone(),
+        cooldowns.clone(),
+        identifiers.clone(),
+    );
+    handles.push(handle);
+
+    let (handle, _samplers_system) = modules::samplers::System::init(
+        100,
+        spatial_os.clone(),
+        cooldown_system.clone(),
+        asteroids.clone(),
+        cooldowns.clone(),
+    );
     handles.push(handle);
 
     /*

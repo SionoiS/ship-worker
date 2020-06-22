@@ -1,4 +1,6 @@
-use crate::id_types::Ship;
+use crate::id_types::{Asteroid, Ship, User};
+use crate::modules::samplers::Sampler;
+use crate::modules::scanners::Scanner;
 use nalgebra::Point2;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
@@ -17,6 +19,8 @@ pub enum SystemMessage {
 pub enum CommandRequest {
     Heartbeat(Ship),
     GridCell(Point2<i16>),
+    GenerateResource(Asteroid, User, Scanner),
+    ExtractResource(Asteroid, Ship, Sampler),
 }
 
 pub struct System {
@@ -40,14 +44,16 @@ impl System {
         while let Ok(message) = self.channel.recv() {
             match message {
                 SystemMessage::CommandRequest(req) => match req {
-                    CommandRequest::Heartbeat(ship_id) => {}
-                    CommandRequest::GridCell(grid_cell) => {}
+                    CommandRequest::Heartbeat(_ship_id) => {}
+                    CommandRequest::GridCell(_grid_cell) => {}
+                    CommandRequest::GenerateResource(_asteroid_id, _user_id, _scanner) => {}
+                    CommandRequest::ExtractResource(_asteroid_id, _ship_id, _sampler) => {}
                 },
-                SystemMessage::CommandResponse(ship_id) => {}
-                SystemMessage::AddComponent(ship_id) => {}
-                SystemMessage::UpdateComponent(ship_id) => {}
-                SystemMessage::Log(ship_id) => {}
-                SystemMessage::Delete(ship_id) => {}
+                SystemMessage::CommandResponse(_ship_id) => {}
+                SystemMessage::AddComponent(_ship_id) => {}
+                SystemMessage::UpdateComponent(_ship_id) => {}
+                SystemMessage::Log(_ship_id) => {}
+                SystemMessage::Delete(_ship_id) => {}
             }
         }
     }

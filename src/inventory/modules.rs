@@ -1,96 +1,67 @@
-use crate::id_types::{DatabaseId, ModuleHandle, Resource};
-use crate::modules::crafting::ModuleData;
+use crate::id_types::{DatabaseId, Module, Resource};
 use std::collections::HashMap;
 use std::num::NonZeroI32;
 use std::num::NonZeroU32;
-use std::sync::mpsc;
-use std::sync::mpsc::{Receiver, Sender};
-use std::thread;
-use std::thread::JoinHandle;
 
-pub enum SystemMessage {
-    AddModule(ModuleHandle, ModuleData),
-    RemoveModule(ModuleHandle),
-
-    UpdateDurability(ModuleHandle, i32),
+pub struct Modules {
+    modules: HashMap<Module, ModuleData>,
 }
 
-pub struct System {
-    channel: Receiver<SystemMessage>,
-
-    data: ModuleInventoryData,
-}
-
-impl System {
-    pub fn init(capacity: usize) -> (JoinHandle<()>, Sender<SystemMessage>) {
-        let (tx, rx) = mpsc::channel();
-
-        let mut system = Self {
-            channel: rx,
-
-            data: ModuleInventoryData::with_capacity(capacity),
-        };
-
-        let handle = thread::spawn(move || {
-            system.update_loop();
-        });
-
-        (handle, tx)
-    }
-
-    fn update_loop(&mut self) {
-        while let Ok(message) = self.channel.recv() {
-            match message {
-                SystemMessage::AddModule(module_handle, data) => {
-                    self.data.modules.insert(module_handle, data);
-                }
-                SystemMessage::RemoveModule(module_handle) => {
-                    self.data.modules.remove(&module_handle);
-                }
-                SystemMessage::UpdateDurability(module_handle, delta) => {
-                    self.data.update_module_durability(&module_handle, delta);
-                }
-            }
-        }
-    }
-}
-
-struct ModuleInventoryData {
-    //Random access only
-    modules: HashMap<ModuleHandle, ModuleData>,
-}
-
-impl ModuleInventoryData {
+impl Modules {
     fn with_capacity(capacity: usize) -> Self {
         Self {
             modules: HashMap::with_capacity(capacity),
         }
     }
 
-    fn update_module_durability(&mut self, handle: &ModuleHandle, delta: i32) {
-        let module_data = self.modules.get_mut(&handle);
+    pub fn update_module_durability(&mut self, module_id: &Module, delta: i32) {
+        let module_data = self.modules.get_mut(module_id);
         let module_data = match module_data {
             Some(module_data) => module_data,
             None => return,
         };
 
-        if let Some(result) = NonZeroI32::new(delta) {
-            module_data.resources.update_durability(result);
+        if module_data.resources.enough_durability(delta) {
+            if let Some(result) = NonZeroI32::new(delta) {
+                module_data.resources.update_durability(result);
+            }
+        } else {
+            self.modules.remove(module_id);
         }
     }
 }
 
-pub struct ModuleResources {
-    //Iteration only
+struct ModuleData {
+    name: String,
+    creator: DatabaseId,
+    properties: [u8; 5],
+    resources: ModuleResources,
+}
+
+struct ModuleResources {
     resource_ids: Vec<Resource>,
     quantities: Vec<NonZeroU32>,
 }
 
 impl ModuleResources {
-    fn new() -> Self {
+    fn with_capacity(capacity: usize) -> Self {
         Self {
-            resource_ids: Vec::with_capacity(5),
-            quantities: Vec::with_capacity(5),
+            resource_ids: Vec::with_capacity(capacity),
+            quantities: Vec::with_capacity(capacity),
+        }
+    }
+
+    fn enough_durability(&self, delta: i32) -> bool {
+        if delta.is_negative() {
+            let mut total = 0;
+
+            for quantity in self.quantities.iter() {
+                total += quantity.get();
+            }
+
+            total > delta.abs() as u32
+        } else {
+            true
         }
     }
 

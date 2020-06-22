@@ -38,6 +38,16 @@ pub struct ResourceHandle {
 }
 
 #[derive(PartialEq, Clone, Copy, Eq, Hash)]
+pub struct Asteroid {
+    id: DatabaseId,
+}
+
+#[derive(PartialEq, Clone, Copy, Eq, Hash)]
+pub struct User {
+    id: DatabaseId,
+}
+
+#[derive(PartialEq, Clone, Copy, Eq, Hash)]
 ///20 alphanumeric characters uniquely identifying a document
 pub struct DatabaseId {
     data: [u8; 20],

@@ -22,7 +22,7 @@ pub enum SystemMessage {
 }
 
 #[derive(Copy, Clone)]
-pub struct Sensor {
+pub struct Sensor /*Placeholder*/ {
     id: Module,
 
     radius_range: f64,
@@ -136,9 +136,8 @@ impl System {
         )
         .into_iter()
         .map(|point| {
-            let coords = position + point;
             let sample = get_samples(
-                coords,
+                position + point,
                 time,
                 Vector3::new(0.0, 0.0, 0.0), //TODO get the correct data
                 Vector3::new(0.0, 0.0, 0.0),
