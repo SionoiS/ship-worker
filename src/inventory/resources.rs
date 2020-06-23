@@ -2,15 +2,20 @@ use crate::id_types::Resource;
 use std::collections::HashMap;
 use std::num::NonZeroU32;
 
+#[derive(Clone)]
 pub struct Resources {
     resources: HashMap<Resource, NonZeroU32>,
 }
 
 impl Resources {
-    fn with_capacity(capacity: usize) -> Self {
+    pub fn with_capacity(capacity: usize) -> Self {
         Self {
             resources: HashMap::with_capacity(capacity),
         }
+    }
+
+    pub fn has_enough(&self, resource_id: &Resource, quantity: NonZeroU32) -> bool {
+        true
     }
 
     pub fn update_or_insert(&mut self, resource_id: &Resource, delta: i32) {

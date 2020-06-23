@@ -54,6 +54,13 @@ fn main() {
     );
     handles.push(handle);
 
+    let (handle, crafting_system, levels) = inventory::crafting::System::init(100);
+    handles.push(handle);
+
+    let (handle, _inventory_system) =
+        inventory::System::init(100, spatial_os.clone(), levels.clone(), identifiers.clone());
+    handles.push(handle);
+
     /*
     let sender_clone = mpsc::Sender::clone(&cooldown_system_sender);
     let arc_clone = Arc::clone(&cooldown_system_shared);

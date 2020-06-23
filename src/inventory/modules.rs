@@ -1,17 +1,22 @@
-use crate::id_types::{DatabaseId, Module, Resource};
+use crate::id_types::{Module, Resource, User};
 use std::collections::HashMap;
 use std::num::NonZeroI32;
 use std::num::NonZeroU32;
 
+#[derive(Clone)]
 pub struct Modules {
     modules: HashMap<Module, ModuleData>,
 }
 
 impl Modules {
-    fn with_capacity(capacity: usize) -> Self {
+    pub fn with_capacity(capacity: usize) -> Self {
         Self {
             modules: HashMap::with_capacity(capacity),
         }
+    }
+
+    pub fn add(&mut self, module_id: Module, module: ModuleData) {
+        self.modules.insert(module_id, module);
     }
 
     pub fn update_module_durability(&mut self, module_id: &Module, delta: i32) {
@@ -31,23 +36,47 @@ impl Modules {
     }
 }
 
-struct ModuleData {
+#[derive(Clone)]
+pub struct ModuleData {
     name: String,
-    creator: DatabaseId,
+    creator: User,
     properties: [u8; 5],
     resources: ModuleResources,
 }
 
-struct ModuleResources {
+impl ModuleData {
+    pub fn new(
+        name: String,
+        creator: User,
+        properties: [u8; 5],
+        resources: ModuleResources,
+    ) -> Self {
+        Self {
+            name,
+            creator,
+            properties,
+            resources,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct ModuleResources {
     resource_ids: Vec<Resource>,
     quantities: Vec<NonZeroU32>,
 }
 
 impl ModuleResources {
-    fn with_capacity(capacity: usize) -> Self {
+    pub fn new(input_resources: &[Resource], input_quantities: &[NonZeroU32]) -> Self {
+        let mut resource_ids = Vec::with_capacity(input_resources.len());
+        let mut quantities = Vec::with_capacity(input_quantities.len());
+
+        resource_ids.copy_from_slice(input_resources);
+        quantities.copy_from_slice(input_quantities);
+
         Self {
-            resource_ids: Vec::with_capacity(capacity),
-            quantities: Vec::with_capacity(capacity),
+            resource_ids,
+            quantities,
         }
     }
 

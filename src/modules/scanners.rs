@@ -3,7 +3,9 @@ use crate::modules::cooldowns::SharedIds;
 use crate::modules::cooldowns::SystemMessage as CooldownMsg;
 use crate::ships::exploration::Asteroids;
 use crate::ships::identifications::Identifiers;
-use crate::spatial_os::connexion::{CommandRequest, SystemMessage as SpatialOSMsg};
+use crate::spatial_os::connexion::{
+    CommandRequest, SystemMessage as SpatialOSMsg, UpdateComponent,
+};
 use std::collections::HashMap;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
@@ -141,7 +143,7 @@ impl System {
     fn process_response(&self, ship_id: &Ship, resource_id: &Resource, quantity: u32) {
         //TODO if command success guard close
 
-        let message = SpatialOSMsg::UpdateComponent(*ship_id);
+        let message = SpatialOSMsg::UpdateComponent(*ship_id, UpdateComponent::Scanner());
 
         self.spatial_os.send(message);
     }

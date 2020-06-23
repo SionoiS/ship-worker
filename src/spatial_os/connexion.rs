@@ -1,4 +1,5 @@
 use crate::id_types::{Asteroid, Ship, User};
+use crate::inventory::Inventory;
 use crate::modules::samplers::Sampler;
 use crate::modules::scanners::Scanner;
 use nalgebra::Point2;
@@ -11,7 +12,7 @@ pub enum SystemMessage {
     CommandRequest(CommandRequest),
     CommandResponse(Ship),
     AddComponent(Ship),
-    UpdateComponent(Ship),
+    UpdateComponent(Ship, UpdateComponent),
     Log(Ship),
     Delete(Ship),
 }
@@ -21,6 +22,11 @@ pub enum CommandRequest {
     GridCell(Point2<i16>),
     GenerateResource(Asteroid, User, Scanner),
     ExtractResource(Asteroid, Ship, Sampler),
+}
+
+pub enum UpdateComponent {
+    Inventory(Inventory),
+    Scanner(),
 }
 
 pub struct System {
@@ -51,7 +57,7 @@ impl System {
                 },
                 SystemMessage::CommandResponse(_ship_id) => {}
                 SystemMessage::AddComponent(_ship_id) => {}
-                SystemMessage::UpdateComponent(_ship_id) => {}
+                SystemMessage::UpdateComponent(_ship_id, _component) => {}
                 SystemMessage::Log(_ship_id) => {}
                 SystemMessage::Delete(_ship_id) => {}
             }

@@ -1,6 +1,6 @@
 /*
     Trying to enforce some logic with types.
-    Ids are always 20 alphanumeric utf-8 chars
+    Ids are always 20 alphanumeric utf-8 chars in Firestore
     Some place restrict ids to one or more types.
     egg. Only TableId here but TableId & ChairId there.
 */
@@ -10,12 +10,6 @@ pub enum Module {
     Sensor(DatabaseId),
     Scanner(DatabaseId),
     Sampler(DatabaseId),
-}
-
-#[derive(PartialEq, Clone, Copy, Eq, Hash)]
-pub struct ModuleHandle {
-    ship_id: Ship,
-    module_id: Module,
 }
 
 #[derive(PartialEq, Clone, Copy, Eq, Hash)]
@@ -32,12 +26,6 @@ pub enum Resource {
 }
 
 #[derive(PartialEq, Clone, Copy, Eq, Hash)]
-pub struct ResourceHandle {
-    ship_id: Ship,
-    resource_id: Resource,
-}
-
-#[derive(PartialEq, Clone, Copy, Eq, Hash)]
 pub struct Asteroid {
     id: DatabaseId,
 }
@@ -48,12 +36,16 @@ pub struct User {
 }
 
 #[derive(PartialEq, Clone, Copy, Eq, Hash)]
-///20 alphanumeric characters uniquely identifying a document
+///20 alphanumeric characters uniquely identifying a document in Firestore
 pub struct DatabaseId {
     data: [u8; 20],
 }
 
 impl DatabaseId {
+    pub fn new() -> Self {
+        Self { data: [0u8; 20] }
+    }
+
     pub fn from_string(seed: &str) -> Result<Self, &'static str> {
         if seed.len() > 20 {
             return Err("Length must be 20");
