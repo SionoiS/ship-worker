@@ -25,20 +25,37 @@ fn main() {
     handles.push(handle);
 
     let (handle, _positions_system, positions) =
-        ships::positions::System::init(100, 900_000, spatial_os.clone(), database);
+        ships::positions::System::init(100, 900_000, spatial_os.clone(), database.clone());
     handles.push(handle);
 
     let (handle, cooldown_system, cooldowns) = modules::cooldowns::System::init(1000);
     handles.push(handle);
 
-    let (handle, _sensors_system) =
-        modules::sensors::System::init(100, positions, cooldowns.clone(), cooldown_system.clone());
+    //let (handle, _crafting_system, levels) = inventory::crafting::System::init(100);
+    //handles.push(handle);
+
+    let (handle, inventory_system) = inventory::System::init(
+        100,
+        spatial_os.clone(), /*, levels.clone()*/
+        identifiers.clone(),
+    );
+    handles.push(handle);
+
+    let (handle, _sensors_system) = modules::sensors::System::init(
+        100,
+        spatial_os.clone(),
+        cooldown_system.clone(),
+        inventory_system.clone(),
+        positions.clone(),
+        cooldowns.clone(),
+    );
     handles.push(handle);
 
     let (handle, _scanners_system) = modules::scanners::System::init(
         100,
         spatial_os.clone(),
         cooldown_system.clone(),
+        inventory_system.clone(),
         asteroids.clone(),
         cooldowns.clone(),
         identifiers.clone(),
@@ -49,16 +66,10 @@ fn main() {
         100,
         spatial_os.clone(),
         cooldown_system.clone(),
+        inventory_system.clone(),
         asteroids.clone(),
         cooldowns.clone(),
     );
-    handles.push(handle);
-
-    let (handle, crafting_system, levels) = inventory::crafting::System::init(100);
-    handles.push(handle);
-
-    let (handle, _inventory_system) =
-        inventory::System::init(100, spatial_os.clone(), levels.clone(), identifiers.clone());
     handles.push(handle);
 
     /*

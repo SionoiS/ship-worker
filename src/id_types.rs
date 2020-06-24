@@ -5,11 +5,20 @@
     egg. Only TableId here but TableId & ChairId there.
 */
 
+//use procedural_generation::modules::ModuleType;
+use procedural_generation::resources::ResouceType;
+
+/* #[derive(PartialEq, Clone, Copy, Eq, Hash)]
+pub struct Module {
+    pub module_type: ModuleType,
+    pub id: DatabaseId,
+} */
+
 #[derive(PartialEq, Clone, Copy, Eq, Hash)]
 pub enum Module {
-    Sensor(DatabaseId),
-    Scanner(DatabaseId),
     Sampler(DatabaseId),
+    Scanner(DatabaseId),
+    Sensor(DatabaseId),
 }
 
 #[derive(PartialEq, Clone, Copy, Eq, Hash)]
@@ -18,11 +27,9 @@ pub enum Ship {
 }
 
 #[derive(PartialEq, Clone, Copy, Eq, Hash)]
-pub enum Resource {
-    Metal(DatabaseId),
-    Crystal(DatabaseId),
-    Radioactive(DatabaseId),
-    Organic(DatabaseId),
+pub struct Resource {
+    pub resource_type: ResouceType,
+    pub id: DatabaseId,
 }
 
 #[derive(PartialEq, Clone, Copy, Eq, Hash)]

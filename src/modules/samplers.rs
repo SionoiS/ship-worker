@@ -1,8 +1,10 @@
 use crate::id_types::{Module, Resource, Ship};
+use crate::inventory::SystemMessage as InvMsg;
 use crate::modules::cooldowns::SharedIds;
 use crate::modules::cooldowns::SystemMessage as CooldownMsg;
 use crate::ships::exploration::Asteroids;
 use crate::spatial_os::connexion::{CommandRequest, SystemMessage as SpatialOSMsg};
+use procedural_generation::modules::samplers::SamplerStats;
 use std::collections::HashMap;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
@@ -11,8 +13,8 @@ use std::thread;
 use std::thread::JoinHandle;
 
 pub enum SystemMessage {
-    AddComponent(Ship, Sampler),
-    UpdateComponent(Ship, Sampler),
+    AddComponent(Ship, Module),
+    UpdateComponent(Ship, Module),
     RemoveComponent(Ship),
 
     CommandResponse(Ship, Resource, u32),
@@ -20,17 +22,13 @@ pub enum SystemMessage {
     UseScanner(Ship),
 }
 
-#[derive(Copy, Clone)]
-pub struct Sampler /*Placeholder*/ {
-    id: Module,
-}
-
 pub struct System {
     channel: Receiver<SystemMessage>,
     spatial_os: Sender<SpatialOSMsg>,
     cooldowns: Sender<CooldownMsg>,
+    inventory: Sender<InvMsg>,
 
-    samplers: HashMap<Ship, Sampler>,
+    samplers: HashMap<Ship, Module>,
 
     asteroids: Arc<Asteroids>,
     modules: Arc<SharedIds>,
@@ -41,6 +39,7 @@ impl System {
         capacity: usize,
         spatial_os: Sender<SpatialOSMsg>,
         cooldowns: Sender<CooldownMsg>,
+        inventory: Sender<InvMsg>,
         asteroids: Arc<Asteroids>,
         modules: Arc<SharedIds>,
     ) -> (JoinHandle<()>, Sender<SystemMessage>) {
@@ -50,6 +49,7 @@ impl System {
             channel: rx,
             spatial_os,
             cooldowns,
+            inventory,
 
             samplers: HashMap::with_capacity(capacity),
             asteroids,
@@ -77,11 +77,11 @@ impl System {
         }
     }
 
-    fn add_component(&mut self, id: &Ship, data: &Sampler) {
+    fn add_component(&mut self, id: &Ship, data: &Module) {
         self.samplers.insert(*id, *data);
     }
 
-    fn update_component(&mut self, id: &Ship, data: &Sampler) {
+    fn update_component(&mut self, id: &Ship, data: &Module) {
         self.samplers.insert(*id, *data);
     }
 
@@ -89,20 +89,23 @@ impl System {
         self.samplers.remove(&id);
     }
 
-    fn use_scanner(&self, id: &Ship) {
-        let sampler = self.samplers.get(id);
-        let sampler = match sampler {
-            Some(sampler) => *sampler,
+    fn use_scanner(&self, ship_id: &Ship) {
+        let sampler_id = self.samplers.get(ship_id);
+        let sampler_id = match sampler_id {
+            Some(sampler_id) => sampler_id,
             None => {
                 return;
             }
         };
 
-        if self.modules.on_cooldown(sampler.id) {
+        if self.modules.on_cooldown(sampler_id) {
             return;
         }
 
-        let asteroid = self.asteroids.read(id);
+        //TODO
+        let sampler = SamplerStats::from_properties(levels);
+
+        let asteroid = self.asteroids.read(ship_id);
         let asteroid = match asteroid {
             Some(asteroid) => asteroid,
             None => {
@@ -110,16 +113,21 @@ impl System {
             }
         };
 
-        //TODO reduce durability of module
+        let message = InvMsg::UpdateModuleDurability(*ship_id, *sampler_id, -1);
 
-        let message = CooldownMsg::StartTimer(sampler.id);
+        self.inventory
+            .send(message)
+            .expect("Inventory system terminated");
+
+        let message = CooldownMsg::StartTimer(*sampler_id);
 
         self.cooldowns
             .send(message)
             .expect("Cooldown system terminated");
 
-        let message =
-            SpatialOSMsg::CommandRequest(CommandRequest::ExtractResource(asteroid, *id, sampler));
+        let message = SpatialOSMsg::CommandRequest(CommandRequest::ExtractResource(
+            asteroid, *ship_id, sampler,
+        ));
 
         self.spatial_os
             .send(message)
@@ -127,8 +135,12 @@ impl System {
     }
 
     fn process_response(&self, ship_id: &Ship, resource_id: &Resource, quantity: u32) {
-        //TODO if command success guard close
+        //TODO guard clause if command success
 
-        //TODO add resource to inventory
+        let message = InvMsg::AddOrUpdateResource(*ship_id, *resource_id, quantity as i32);
+
+        self.inventory
+            .send(message)
+            .expect("Inventory system terminated");
     }
 }

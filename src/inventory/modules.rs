@@ -5,7 +5,7 @@ use std::num::NonZeroU32;
 
 #[derive(Clone)]
 pub struct Modules {
-    modules: HashMap<Module, ModuleData>,
+    pub modules: HashMap<Module, ModuleStats>,
 }
 
 impl Modules {
@@ -15,8 +15,8 @@ impl Modules {
         }
     }
 
-    pub fn add(&mut self, module_id: Module, module: ModuleData) {
-        self.modules.insert(module_id, module);
+    pub fn add(&mut self, module_id: &Module, module: ModuleStats) {
+        self.modules.insert(*module_id, module);
     }
 
     pub fn update_module_durability(&mut self, module_id: &Module, delta: i32) {
@@ -37,21 +37,20 @@ impl Modules {
 }
 
 #[derive(Clone)]
-pub struct ModuleData {
+pub struct ModuleStats {
     name: String,
     creator: User,
-    properties: [u8; 5],
+    properties: Vec<u8>,
     resources: ModuleResources,
 }
 
-impl ModuleData {
-    pub fn new(
-        name: String,
-        creator: User,
-        properties: [u8; 5],
-        resources: ModuleResources,
-    ) -> Self {
-        Self {
+impl ModuleStats {
+    pub fn new(name: String, creator: User, levels: &[u8], resources: ModuleResources) -> Self {
+        let mut properties = Vec::with_capacity(levels.len());
+
+        properties.copy_from_slice(levels);
+
+        ModuleStats {
             name,
             creator,
             properties,

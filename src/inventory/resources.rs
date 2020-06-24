@@ -15,7 +15,11 @@ impl Resources {
     }
 
     pub fn has_enough(&self, resource_id: &Resource, quantity: NonZeroU32) -> bool {
-        true
+        let res_quantity = self.resources.get(resource_id);
+        match res_quantity {
+            Some(res_quantity) => *res_quantity >= quantity,
+            None => false,
+        }
     }
 
     pub fn update_or_insert(&mut self, resource_id: &Resource, delta: i32) {

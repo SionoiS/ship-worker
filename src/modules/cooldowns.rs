@@ -185,10 +185,10 @@ impl SharedIds {
         }
     }
 
-    pub fn on_cooldown(&self, module_id: Module) -> bool {
+    pub fn on_cooldown(&self, module_id: &Module) -> bool {
         if let Ok(module_ids) = self.data.read() {
             for id in module_ids.iter() {
-                if *id == module_id {
+                if *id == *module_id {
                     return true;
                 }
             }

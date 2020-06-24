@@ -1,8 +1,8 @@
-use crate::id_types::{Asteroid, Ship, User};
+use crate::id_types::{Asteroid, Resource, Ship, User};
 use crate::inventory::Inventory;
-use crate::modules::samplers::Sampler;
-use crate::modules::scanners::Scanner;
 use nalgebra::Point2;
+use procedural_generation::modules::samplers::SamplerStats;
+use procedural_generation::modules::scanners::ScannerStats;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
@@ -20,13 +20,14 @@ pub enum SystemMessage {
 pub enum CommandRequest {
     Heartbeat(Ship),
     GridCell(Point2<i16>),
-    GenerateResource(Asteroid, User, Scanner),
-    ExtractResource(Asteroid, Ship, Sampler),
+    GenerateResource(Asteroid, User, ScannerStats),
+    ExtractResource(Asteroid, Ship, SamplerStats),
 }
 
 pub enum UpdateComponent {
     Inventory(Inventory),
-    Scanner(),
+    Scanner(Resource, u32),
+    Sensor(Vec<u8>),
 }
 
 pub struct System {

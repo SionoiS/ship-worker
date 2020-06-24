@@ -1,7 +1,9 @@
 use crate::id_types::{Module, Ship};
+use crate::inventory::SystemMessage as InvMsg;
 use crate::modules::cooldowns::SharedIds;
 use crate::modules::cooldowns::SystemMessage as CooldownMsg;
 use crate::ships::positions::Positions;
+use crate::spatial_os::connexion::{SystemMessage as SpatialMsg, UpdateComponent};
 use nalgebra::Vector3;
 use procedural_generation::resources::quantity::get_tier;
 use procedural_generation::resources::rarity::get_samples;
@@ -22,7 +24,7 @@ pub enum SystemMessage {
 }
 
 #[derive(Copy, Clone)]
-pub struct Sensor /*Placeholder*/ {
+pub struct Sensor /*Placeholder Component*/ {
     id: Module,
 
     radius_range: f64,
@@ -35,7 +37,9 @@ pub struct Sensor /*Placeholder*/ {
 
 pub struct System {
     channel: Receiver<SystemMessage>,
+    spatial_os: Sender<SpatialMsg>,
     cooldowns: Sender<CooldownMsg>,
+    inventory: Sender<InvMsg>,
 
     sensors: HashMap<Ship, Sensor>,
     positions: Arc<Positions>,
@@ -45,15 +49,19 @@ pub struct System {
 impl System {
     pub fn init(
         capacity: usize,
+        spatial_os: Sender<SpatialMsg>,
+        cooldowns: Sender<CooldownMsg>,
+        inventory: Sender<InvMsg>,
         positions: Arc<Positions>,
         modules: Arc<SharedIds>,
-        cooldowns: Sender<CooldownMsg>,
     ) -> (JoinHandle<()>, Sender<SystemMessage>) {
         let (tx, rx) = mpsc::channel();
 
         let mut system = Self {
             channel: rx,
+            spatial_os,
             cooldowns,
+            inventory,
 
             sensors: HashMap::with_capacity(capacity),
             positions,
@@ -90,8 +98,8 @@ impl System {
         self.sensors.remove(&id);
     }
 
-    fn use_sensor(&self, id: &Ship) {
-        let sensor = self.sensors.get(id);
+    fn use_sensor(&self, ship_id: &Ship) {
+        let sensor = self.sensors.get(ship_id);
         let sensor = match sensor {
             Some(sensor) => sensor,
             None => {
@@ -99,7 +107,7 @@ impl System {
             }
         };
 
-        let position = self.positions.read(id);
+        let position = self.positions.read(ship_id);
         let position = match position {
             Some(position) => position,
             None => {
@@ -122,11 +130,15 @@ impl System {
             .send(message)
             .expect("Cooldown system terminated");
 
-        //TODO reduce durability of module
+        let message = InvMsg::UpdateModuleDurability(*ship_id, sensor.id, -1);
+
+        self.inventory
+            .send(message)
+            .expect("Inventory system terminated");
 
         //TODO add survey to the map inventory
 
-        let _samples: Vec<u8> = sphere_points::calculate_coordinates(
+        let samples: Vec<u8> = sphere_points::calculate_coordinates(
             sensor.radius_range,
             sensor.radius_resolution,
             sensor.longitude_range,
@@ -137,19 +149,23 @@ impl System {
         .into_iter()
         .map(|point| {
             let sample = get_samples(
-                position + point,
+                &(position + point),
                 time,
-                Vector3::new(0.0, 0.0, 0.0), //TODO get the correct data
-                Vector3::new(0.0, 0.0, 0.0),
-                Vector3::new(0.0, 0.0, 0.0),
-                Vector3::new(0, 0, 0),
-                [0u8; 512],
+                &Vector3::new(0.0, 0.0, 0.0), //TODO get the correct data
+                &Vector3::new(0.0, 0.0, 0.0),
+                &Vector3::new(0.0, 0.0, 0.0),
+                &Vector3::new(0, 0, 0),
+                &[0u8; 512],
             );
 
             get_tier(sample)
         })
         .collect();
 
-        //TODO send spatialOS event with rarity data
+        let message = SpatialMsg::UpdateComponent(*ship_id, UpdateComponent::Sensor(samples));
+
+        self.spatial_os
+            .send(message)
+            .expect("SpatialOS connexion terminated");
     }
 }

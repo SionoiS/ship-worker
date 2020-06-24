@@ -1,4 +1,5 @@
 use crate::id_types::{Module, Resource, Ship};
+use crate::inventory::SystemMessage as InvMsg;
 use crate::modules::cooldowns::SharedIds;
 use crate::modules::cooldowns::SystemMessage as CooldownMsg;
 use crate::ships::exploration::Asteroids;
@@ -6,6 +7,7 @@ use crate::ships::identifications::Identifiers;
 use crate::spatial_os::connexion::{
     CommandRequest, SystemMessage as SpatialOSMsg, UpdateComponent,
 };
+use procedural_generation::modules::scanners::ScannerStats;
 use std::collections::HashMap;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
@@ -14,8 +16,8 @@ use std::thread;
 use std::thread::JoinHandle;
 
 pub enum SystemMessage {
-    AddComponent(Ship, Scanner),
-    UpdateComponent(Ship, Scanner),
+    AddComponent(Ship, Module),
+    UpdateComponent(Ship, Module),
     RemoveComponent(Ship),
 
     CommandResponse(Ship, Resource, u32),
@@ -23,17 +25,13 @@ pub enum SystemMessage {
     UseScanner(Ship),
 }
 
-#[derive(Copy, Clone)]
-pub struct Scanner /*Placeholder*/ {
-    id: Module,
-}
-
 pub struct System {
     channel: Receiver<SystemMessage>,
     spatial_os: Sender<SpatialOSMsg>,
     cooldowns: Sender<CooldownMsg>,
+    inventory: Sender<InvMsg>,
 
-    scanners: HashMap<Ship, Scanner>,
+    scanners: HashMap<Ship, Module>,
 
     asteroids: Arc<Asteroids>,
     modules: Arc<SharedIds>,
@@ -45,6 +43,7 @@ impl System {
         capacity: usize,
         spatial_os: Sender<SpatialOSMsg>,
         cooldowns: Sender<CooldownMsg>,
+        inventory: Sender<InvMsg>,
         asteroids: Arc<Asteroids>,
         modules: Arc<SharedIds>,
         identifiers: Arc<Identifiers>,
@@ -55,6 +54,7 @@ impl System {
             channel: rx,
             spatial_os,
             cooldowns,
+            inventory,
 
             scanners: HashMap::with_capacity(capacity),
             asteroids,
@@ -83,11 +83,11 @@ impl System {
         }
     }
 
-    fn add_component(&mut self, id: &Ship, data: &Scanner) {
+    fn add_component(&mut self, id: &Ship, data: &Module) {
         self.scanners.insert(*id, *data);
     }
 
-    fn update_component(&mut self, id: &Ship, data: &Scanner) {
+    fn update_component(&mut self, id: &Ship, data: &Module) {
         self.scanners.insert(*id, *data);
     }
 
@@ -95,20 +95,29 @@ impl System {
         self.scanners.remove(&id);
     }
 
-    fn use_scanner(&self, id: &Ship) {
-        let scanner = self.scanners.get(id);
-        let scanner = match scanner {
-            Some(scanner) => *scanner,
+    fn use_scanner(&self, ship_id: &Ship) {
+        let scanner_id = self.scanners.get(ship_id);
+        let scanner_id = match scanner_id {
+            Some(scanner_id) => scanner_id,
             None => {
                 return;
             }
         };
 
-        if self.modules.on_cooldown(scanner.id) {
+        if self.modules.on_cooldown(scanner_id) {
             return;
         }
 
-        let asteroid = self.asteroids.read(id);
+        //TODO
+        let props = self.inventory.read(scanner_id);
+        let scanner = match props {
+            Some(props) => ScannerStats::from_properties(props),
+            None => {
+                return;
+            }
+        };
+
+        let asteroid = self.asteroids.read(ship_id);
         let asteroid = match asteroid {
             Some(asteroid) => asteroid,
             None => {
@@ -116,7 +125,7 @@ impl System {
             }
         };
 
-        let user = self.identifiers.read(id);
+        let user = self.identifiers.read(ship_id);
         let user = match user {
             Some(user) => user,
             None => {
@@ -124,9 +133,13 @@ impl System {
             }
         };
 
-        //TODO reduce durability of module
+        let message = InvMsg::UpdateModuleDurability(*ship_id, *scanner_id, -1);
 
-        let message = CooldownMsg::StartTimer(scanner.id);
+        self.inventory
+            .send(message)
+            .expect("Inventory system terminated");
+
+        let message = CooldownMsg::StartTimer(*scanner_id);
 
         self.cooldowns
             .send(message)
@@ -141,10 +154,15 @@ impl System {
     }
 
     fn process_response(&self, ship_id: &Ship, resource_id: &Resource, quantity: u32) {
-        //TODO if command success guard close
+        //TODO guard clause if command success
 
-        let message = SpatialOSMsg::UpdateComponent(*ship_id, UpdateComponent::Scanner());
+        let message = SpatialOSMsg::UpdateComponent(
+            *ship_id,
+            UpdateComponent::Scanner(*resource_id, quantity),
+        );
 
-        self.spatial_os.send(message);
+        self.spatial_os
+            .send(message)
+            .expect("SpatialOs connexion terminated");
     }
 }
