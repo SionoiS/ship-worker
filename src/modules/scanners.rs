@@ -1,7 +1,6 @@
 use crate::id_types::{Module, Resource, Ship};
-use crate::inventory::SystemMessage as InvMsg;
-use crate::modules::cooldowns::SharedIds;
-use crate::modules::cooldowns::SystemMessage as CooldownMsg;
+use crate::inventory::{Inventories, SystemMessage as InvMsg};
+use crate::modules::cooldowns::{Cooldowns, SystemMessage as CooldownMsg};
 use crate::ships::exploration::Asteroids;
 use crate::ships::identifications::Identifiers;
 use crate::spatial_os::connexion::{
@@ -28,38 +27,43 @@ pub enum SystemMessage {
 pub struct System {
     channel: Receiver<SystemMessage>,
     spatial_os: Sender<SpatialOSMsg>,
-    cooldowns: Sender<CooldownMsg>,
+    cooldown: Sender<CooldownMsg>,
     inventory: Sender<InvMsg>,
 
     scanners: HashMap<Ship, Module>,
 
     asteroids: Arc<Asteroids>,
-    modules: Arc<SharedIds>,
+    cooldowns: Arc<Cooldowns>,
     identifiers: Arc<Identifiers>,
+    inventories: Arc<Inventories>,
 }
 
 impl System {
+    #[allow(clippy::too_many_arguments)]
     pub fn init(
         capacity: usize,
         spatial_os: Sender<SpatialOSMsg>,
-        cooldowns: Sender<CooldownMsg>,
+        cooldown: Sender<CooldownMsg>,
         inventory: Sender<InvMsg>,
         asteroids: Arc<Asteroids>,
-        modules: Arc<SharedIds>,
+        cooldowns: Arc<Cooldowns>,
         identifiers: Arc<Identifiers>,
+        inventories: Arc<Inventories>,
     ) -> (JoinHandle<()>, Sender<SystemMessage>) {
         let (tx, rx) = mpsc::channel();
 
         let mut system = Self {
             channel: rx,
             spatial_os,
-            cooldowns,
+            cooldown,
             inventory,
 
             scanners: HashMap::with_capacity(capacity),
+
             asteroids,
-            modules,
+            cooldowns,
             identifiers,
+            inventories,
         };
 
         let handle = thread::spawn(move || {
@@ -99,51 +103,42 @@ impl System {
         let scanner_id = self.scanners.get(ship_id);
         let scanner_id = match scanner_id {
             Some(scanner_id) => scanner_id,
-            None => {
-                return;
-            }
+            None => return,
         };
 
-        if self.modules.on_cooldown(scanner_id) {
+        if self.cooldowns.is_active(scanner_id) {
             return;
         }
-
-        //TODO
-        let props = self.inventory.read(scanner_id);
-        let scanner = match props {
-            Some(props) => ScannerStats::from_properties(props),
-            None => {
-                return;
-            }
-        };
 
         let asteroid = self.asteroids.read(ship_id);
         let asteroid = match asteroid {
             Some(asteroid) => asteroid,
-            None => {
-                return;
-            }
+            None => return,
         };
 
         let user = self.identifiers.read(ship_id);
         let user = match user {
             Some(user) => user,
-            None => {
-                return;
-            }
+            None => return,
         };
+
+        let props = self.inventories.get_module_properties(ship_id, scanner_id);
+        let scanner = match props {
+            Some(props) => ScannerStats::from_properties(&props),
+            None => return,
+        };
+
+        let message = CooldownMsg::StartTimer(*scanner_id);
+
+        self.cooldown
+            .send(message)
+            .expect("Cooldown system terminated");
 
         let message = InvMsg::UpdateModuleDurability(*ship_id, *scanner_id, -1);
 
         self.inventory
             .send(message)
             .expect("Inventory system terminated");
-
-        let message = CooldownMsg::StartTimer(*scanner_id);
-
-        self.cooldowns
-            .send(message)
-            .expect("Cooldown system terminated");
 
         let message =
             SpatialOSMsg::CommandRequest(CommandRequest::GenerateResource(asteroid, user, scanner));

@@ -1,10 +1,10 @@
 use crate::id_types::{Module, Ship};
-use crate::inventory::SystemMessage as InvMsg;
-use crate::modules::cooldowns::SharedIds;
-use crate::modules::cooldowns::SystemMessage as CooldownMsg;
+use crate::inventory::{Inventories, SystemMessage as InvMsg};
+use crate::modules::cooldowns::{Cooldowns, SystemMessage as CooldownMsg};
 use crate::ships::positions::Positions;
 use crate::spatial_os::connexion::{SystemMessage as SpatialMsg, UpdateComponent};
 use nalgebra::Vector3;
+use procedural_generation::modules::sensors::SensorStats;
 use procedural_generation::resources::quantity::get_tier;
 use procedural_generation::resources::rarity::get_samples;
 use std::collections::HashMap;
@@ -16,56 +16,49 @@ use std::thread::JoinHandle;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 pub enum SystemMessage {
-    AddComponent(Ship, Sensor),
-    UpdateComponent(Ship, Sensor),
+    AddComponent(Ship, Module),
+    UpdateComponent(Ship, Module),
     RemoveComponent(Ship),
 
     UseSensor(Ship),
 }
 
-#[derive(Copy, Clone)]
-pub struct Sensor /*Placeholder Component*/ {
-    id: Module,
-
-    radius_range: f64,
-    radius_resolution: i32,
-    longitude_range: f64,
-    longitude_resolution: i32,
-    latitude_range: f64,
-    latitude_resolution: i32,
-}
-
 pub struct System {
     channel: Receiver<SystemMessage>,
     spatial_os: Sender<SpatialMsg>,
-    cooldowns: Sender<CooldownMsg>,
+    cooldown: Sender<CooldownMsg>,
     inventory: Sender<InvMsg>,
 
-    sensors: HashMap<Ship, Sensor>,
+    sensors: HashMap<Ship, Module>,
+
     positions: Arc<Positions>,
-    modules: Arc<SharedIds>,
+    cooldowns: Arc<Cooldowns>,
+    inventories: Arc<Inventories>,
 }
 
 impl System {
     pub fn init(
         capacity: usize,
         spatial_os: Sender<SpatialMsg>,
-        cooldowns: Sender<CooldownMsg>,
+        cooldown: Sender<CooldownMsg>,
         inventory: Sender<InvMsg>,
         positions: Arc<Positions>,
-        modules: Arc<SharedIds>,
+        cooldowns: Arc<Cooldowns>,
+        inventories: Arc<Inventories>,
     ) -> (JoinHandle<()>, Sender<SystemMessage>) {
         let (tx, rx) = mpsc::channel();
 
         let mut system = Self {
             channel: rx,
             spatial_os,
-            cooldowns,
+            cooldown,
             inventory,
 
             sensors: HashMap::with_capacity(capacity),
+
             positions,
-            modules,
+            cooldowns,
+            inventories,
         };
 
         let handle = thread::spawn(move || {
@@ -86,65 +79,65 @@ impl System {
         }
     }
 
-    fn add_component(&mut self, id: &Ship, data: &Sensor) {
-        self.sensors.insert(*id, *data);
+    fn add_component(&mut self, ship_id: &Ship, module_id: &Module) {
+        self.sensors.insert(*ship_id, *module_id);
     }
 
-    fn update_component(&mut self, id: &Ship, data: &Sensor) {
-        self.sensors.insert(*id, *data);
+    fn update_component(&mut self, ship_id: &Ship, module_id: &Module) {
+        self.sensors.insert(*ship_id, *module_id);
     }
 
-    fn remove_component(&mut self, id: &Ship) {
-        self.sensors.remove(&id);
+    fn remove_component(&mut self, ship_id: &Ship) {
+        self.sensors.remove(&ship_id);
     }
 
     fn use_sensor(&self, ship_id: &Ship) {
-        let sensor = self.sensors.get(ship_id);
-        let sensor = match sensor {
-            Some(sensor) => sensor,
-            None => {
-                return;
-            }
+        let sensor_id = self.sensors.get(ship_id);
+        let sensor_id = match sensor_id {
+            Some(sensor_id) => sensor_id,
+            None => return,
+        };
+
+        if self.cooldowns.is_active(sensor_id) {
+            return;
+        }
+
+        let props = self.inventories.get_module_properties(ship_id, sensor_id);
+        let sensor = match props {
+            Some(props) => SensorStats::from_properties(&props),
+            None => return,
         };
 
         let position = self.positions.read(ship_id);
         let position = match position {
             Some(position) => position,
-            None => {
-                return;
-            }
+            None => return,
         };
+
+        let message = CooldownMsg::StartTimer(*sensor_id);
+
+        self.cooldown
+            .send(message)
+            .expect("Cooldown system terminated");
+
+        let message = InvMsg::UpdateModuleDurability(*ship_id, *sensor_id, -1);
+
+        self.inventory
+            .send(message)
+            .expect("Inventory system terminated");
 
         let time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("SystemTime before UNIX EPOCH!")
             .as_secs();
 
-        if self.modules.on_cooldown(sensor.id) {
-            return;
-        }
-
-        let message = CooldownMsg::StartTimer(sensor.id);
-
-        self.cooldowns
-            .send(message)
-            .expect("Cooldown system terminated");
-
-        let message = InvMsg::UpdateModuleDurability(*ship_id, sensor.id, -1);
-
-        self.inventory
-            .send(message)
-            .expect("Inventory system terminated");
-
-        //TODO add survey to the map inventory
-
         let samples: Vec<u8> = sphere_points::calculate_coordinates(
-            sensor.radius_range,
-            sensor.radius_resolution,
-            sensor.longitude_range,
-            sensor.longitude_resolution,
-            sensor.latitude_range,
-            sensor.latitude_resolution,
+            sensor.get_radius_range(),
+            sensor.get_radius_resolution(),
+            sensor.get_longitude_range(),
+            sensor.get_longitude_resolution(),
+            sensor.get_latitude_range(),
+            sensor.get_latitude_resolution(),
         )
         .into_iter()
         .map(|point| {

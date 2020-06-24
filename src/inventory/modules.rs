@@ -8,6 +8,20 @@ pub struct Modules {
     pub modules: HashMap<Module, ModuleStats>,
 }
 
+#[derive(Clone)]
+pub struct ModuleStats {
+    name: String,
+    creator: User,
+    properties: Vec<u8>,
+    resources: ModuleResources,
+}
+
+#[derive(Clone)]
+pub struct ModuleResources {
+    resource_ids: Vec<Resource>,
+    quantities: Vec<NonZeroU32>,
+}
+
 impl Modules {
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
@@ -36,14 +50,6 @@ impl Modules {
     }
 }
 
-#[derive(Clone)]
-pub struct ModuleStats {
-    name: String,
-    creator: User,
-    properties: Vec<u8>,
-    resources: ModuleResources,
-}
-
 impl ModuleStats {
     pub fn new(name: String, creator: User, levels: &[u8], resources: ModuleResources) -> Self {
         let mut properties = Vec::with_capacity(levels.len());
@@ -57,12 +63,10 @@ impl ModuleStats {
             resources,
         }
     }
-}
 
-#[derive(Clone)]
-pub struct ModuleResources {
-    resource_ids: Vec<Resource>,
-    quantities: Vec<NonZeroU32>,
+    pub fn get_properties(&self) -> Vec<u8> {
+        self.properties.to_vec()
+    }
 }
 
 impl ModuleResources {
@@ -80,17 +84,17 @@ impl ModuleResources {
     }
 
     fn enough_durability(&self, delta: i32) -> bool {
-        if delta.is_negative() {
-            let mut total = 0;
-
-            for quantity in self.quantities.iter() {
-                total += quantity.get();
-            }
-
-            total > delta.abs() as u32
-        } else {
-            true
+        if delta.is_positive() {
+            return true;
         }
+
+        let mut total = 0;
+
+        for quantity in self.quantities.iter() {
+            total += quantity.get();
+        }
+
+        total > delta.abs() as u32
     }
 
     fn update_durability(&mut self, total_change: NonZeroI32) {

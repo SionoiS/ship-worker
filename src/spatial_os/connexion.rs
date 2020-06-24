@@ -28,6 +28,7 @@ pub enum UpdateComponent {
     Inventory(Inventory),
     Scanner(Resource, u32),
     Sensor(Vec<u8>),
+    Damageable(u32),
 }
 
 pub struct System {

@@ -1,9 +1,7 @@
-//pub mod crafting;
 mod modules;
 mod resources;
 
 use crate::id_types::{Module, Resource, Ship, User};
-//use crate::inventory::crafting::CraftingLevels;
 use crate::inventory::modules::{ModuleResources, ModuleStats, Modules};
 use crate::inventory::resources::Resources;
 use crate::ships::identifications::Identifiers;
@@ -31,7 +29,6 @@ pub struct System {
 
     inventories: Arc<Inventories>,
 
-    //levels: Arc<CraftingLevels>,
     identifiers: Arc<Identifiers>,
 }
 
@@ -39,7 +36,6 @@ impl System {
     pub fn init(
         capacity: usize,
         spatial_os: Sender<SpatialOSMsg>,
-        //levels: Arc<CraftingLevels>,
         identifiers: Arc<Identifiers>,
     ) -> (JoinHandle<()>, Sender<SystemMessage>, Arc<Inventories>) {
         let (tx, channel) = mpsc::channel();
@@ -50,7 +46,6 @@ impl System {
 
             inventories: Arc::new(Inventories::new(capacity)),
 
-            //levels,
             identifiers,
         };
 
@@ -67,7 +62,7 @@ impl System {
         while let Ok(message) = self.channel.recv() {
             match message {
                 SystemMessage::AddOrUpdateComponent(ship_id, inventory) => {
-                    self.inventories.add(&ship_id, &inventory)
+                    self.inventories.add(&ship_id, inventory)
                 }
                 SystemMessage::RemoveComponent(ship_id) => self.inventories.remove(&ship_id),
                 SystemMessage::UpdateModuleDurability(ship_id, module_id, delta) => {
@@ -84,27 +79,37 @@ impl System {
     }
 
     fn update_module_durability(&mut self, ship_id: &Ship, module_id: &Module, delta: i32) {
-        //TODO
-        if let Some(inv) = self.inventories.get_mut(&ship_id) {
-            inv.modules.update_module_durability(module_id, delta);
+        let mut inv = self.inventories.data.write().expect("Lock poisoned");
 
-            let message =
-                SpatialOSMsg::UpdateComponent(*ship_id, UpdateComponent::Inventory(inv.clone()));
+        let inv = inv.get_mut(&ship_id);
+        let inv = match inv {
+            Some(inv) => inv,
+            None => return,
+        };
 
-            self.spatial_os
-                .send(message)
-                .expect("SpatialOS connexion terminated");
-        }
+        inv.modules.update_module_durability(module_id, delta);
+
+        let message =
+            SpatialOSMsg::UpdateComponent(*ship_id, UpdateComponent::Inventory(inv.clone()));
+
+        self.spatial_os
+            .send(message)
+            .expect("SpatialOS connexion terminated");
     }
 
     fn add_or_update_resource(&mut self, ship_id: &Ship, resource_id: &Resource, quantity: i32) {
-        //TODO
-        if let Some(inv) = self.inventories.get_mut(&ship_id) {
-            inv.resources.update_or_insert(&resource_id, quantity);
-        }
+        let mut inv = self.inventories.data.write().expect("Lock poisoned");
+
+        let inv = inv.get_mut(&ship_id);
+        let inv = match inv {
+            Some(inv) => inv,
+            None => return,
+        };
+
+        inv.resources.update_or_insert(&resource_id, quantity);
 
         let message =
-            SpatialOSMsg::UpdateComponent(ship_id, UpdateComponent::Inventory(inv.clone()));
+            SpatialOSMsg::UpdateComponent(*ship_id, UpdateComponent::Inventory(inv.clone()));
 
         self.spatial_os
             .send(message)
@@ -119,7 +124,14 @@ impl System {
         craft_levels: &[u8],
         resources: &[Resource],
     ) {
-        //TODO
+        let mut inv = self.inventories.data.write().expect("Lock poisoned");
+
+        let inv = inv.get_mut(ship_id);
+        let inv = match inv {
+            Some(inv) => inv,
+            None => return,
+        };
+
         let creator = self.identifiers.read(ship_id);
         let creator = match creator {
             Some(creator) => creator,
@@ -142,40 +154,38 @@ impl System {
             return;
         }
 
-        if let Some(inv) = self.inventories.data.get_mut(ship_id) {
-            for (i, requirement) in requirements.iter().enumerate() {
-                let (resource_type, quantity) = *requirement;
+        for (i, requirement) in requirements.iter().enumerate() {
+            let (resource_type, quantity) = *requirement;
 
-                if resource_type != resources[i].resource_type {
-                    return;
-                }
-
-                if !inv.resources.has_enough(&resources[i], quantity) {
-                    return;
-                }
+            if resource_type != resources[i].resource_type {
+                return;
             }
 
-            let quantities = requirements
-                .into_iter()
-                .map(|tuple| tuple.1)
-                .collect::<Vec<NonZeroU32>>();
-
-            inv.craft_new_module(
-                module_id,
-                name,
-                &creator,
-                craft_levels,
-                resources,
-                &quantities,
-            );
-
-            let message =
-                SpatialOSMsg::UpdateComponent(*ship_id, UpdateComponent::Inventory(inv.clone()));
-
-            self.spatial_os
-                .send(message)
-                .expect("SpatialOS connexion terminated");
+            if !inv.resources.has_enough(&resources[i], quantity) {
+                return;
+            }
         }
+
+        let quantities = requirements
+            .into_iter()
+            .map(|tuple| tuple.1)
+            .collect::<Vec<NonZeroU32>>();
+
+        inv.craft_new_module(
+            module_id,
+            name,
+            &creator,
+            craft_levels,
+            resources,
+            &quantities,
+        );
+
+        let message =
+            SpatialOSMsg::UpdateComponent(*ship_id, UpdateComponent::Inventory(inv.clone()));
+
+        self.spatial_os
+            .send(message)
+            .expect("SpatialOS connexion terminated");
     }
 }
 
@@ -190,9 +200,9 @@ impl Inventories {
         }
     }
 
-    fn add(&self, ship_id: &Ship, inventory: &Inventory) {
+    fn add(&self, ship_id: &Ship, inventory: Inventory) {
         if let Ok(mut hash_map) = self.data.write() {
-            hash_map.insert(*ship_id, *inventory);
+            hash_map.insert(*ship_id, inventory);
         }
     }
 
@@ -202,21 +212,16 @@ impl Inventories {
         }
     }
 
-    pub fn get_module_stats(&self, ship_id: &Ship, module_id: &Module) -> Option<ModuleStats> {
-        let map = self.data.read();
+    pub fn get_module_properties(&self, ship_id: &Ship, module_id: &Module) -> Option<Vec<u8>> {
+        let hash_map = self.data.read().expect("Lock poisoned");
 
-        let map = match map {
-            Ok(map) => map,
-            Err(_) => return None,
-        };
-
-        let inv = match map.get(ship_id) {
+        let inv = match hash_map.get(ship_id) {
             Some(inv) => inv,
             None => return None,
         };
 
         match inv.modules.modules.get(module_id) {
-            Some(module) => Some(*module),
+            Some(module) => Some(module.get_properties()),
             None => None,
         }
     }
