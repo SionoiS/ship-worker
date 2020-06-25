@@ -1,4 +1,3 @@
-use crate::id_types::{Module, Resource, Ship};
 use crate::inventory::{Inventories, SystemMessage as InvMsg};
 use crate::modules::cooldowns::{Cooldowns, SystemMessage as CooldownMsg};
 use crate::ships::exploration::Asteroids;
@@ -6,6 +5,7 @@ use crate::ships::identifications::Identifiers;
 use crate::spatial_os::connexion::{
     CommandRequest, SystemMessage as SpatialOSMsg, UpdateComponent,
 };
+use procedural_generation::id_types::{Module, Resource, Ship};
 use procedural_generation::modules::scanners::ScannerStats;
 use std::collections::HashMap;
 use std::sync::mpsc;
@@ -124,7 +124,10 @@ impl System {
 
         let props = self.inventories.get_module_properties(ship_id, scanner_id);
         let scanner = match props {
-            Some(props) => ScannerStats::from_properties(&props),
+            Some(props) => match ScannerStats::from_properties(&props) {
+                Ok(sampler) => sampler,
+                Err(_) => return,
+            },
             None => return,
         };
 

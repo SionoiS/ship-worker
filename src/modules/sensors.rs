@@ -1,12 +1,13 @@
-use crate::id_types::{Module, Ship};
 use crate::inventory::{Inventories, SystemMessage as InvMsg};
 use crate::modules::cooldowns::{Cooldowns, SystemMessage as CooldownMsg};
 use crate::ships::positions::Positions;
 use crate::spatial_os::connexion::{SystemMessage as SpatialMsg, UpdateComponent};
 use nalgebra::Vector3;
+use procedural_generation::id_types::{Module, Ship};
 use procedural_generation::modules::sensors::SensorStats;
 use procedural_generation::resources::quantity::get_tier;
 use procedural_generation::resources::rarity::get_samples;
+use rayon::prelude::*;
 use std::collections::HashMap;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
@@ -104,7 +105,10 @@ impl System {
 
         let props = self.inventories.get_module_properties(ship_id, sensor_id);
         let sensor = match props {
-            Some(props) => SensorStats::from_properties(&props),
+            Some(props) => match SensorStats::from_properties(&props) {
+                Ok(sampler) => sampler,
+                Err(_) => return,
+            },
             None => return,
         };
 
@@ -139,7 +143,7 @@ impl System {
             sensor.get_latitude_range(),
             sensor.get_latitude_resolution(),
         )
-        .into_iter()
+        .into_par_iter()
         .map(|point| {
             let sample = get_samples(
                 &(position + point),

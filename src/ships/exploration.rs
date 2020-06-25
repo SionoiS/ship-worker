@@ -1,4 +1,4 @@
-use crate::id_types::{Asteroid, Ship};
+use procedural_generation::id_types::{Asteroid, Ship};
 use std::collections::HashMap;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};

@@ -1,5 +1,5 @@
-use crate::id_types::Ship;
 use crate::spatial_os::connexion::{CommandRequest, SystemMessage as Message};
+use procedural_generation::id_types::Ship;
 use rand::Rng;
 use rand::SeedableRng;
 use rand_xoshiro::Xoshiro128StarStar;

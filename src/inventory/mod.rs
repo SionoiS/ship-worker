@@ -1,12 +1,16 @@
 mod modules;
 mod resources;
 
-use crate::id_types::{Module, Resource, Ship, User};
 use crate::inventory::modules::{ModuleResources, ModuleStats, Modules};
 use crate::inventory::resources::Resources;
 use crate::ships::identifications::Identifiers;
 use crate::spatial_os::connexion::{SystemMessage as SpatialOSMsg, UpdateComponent};
+use procedural_generation::id_types::{Module, Resource, Ship, User};
+use procedural_generation::modules::samplers::SamplerStats;
+use procedural_generation::modules::scanners::ScannerStats;
+use procedural_generation::modules::sensors::SensorStats;
 use std::collections::HashMap;
+use std::mem;
 use std::num::NonZeroU32;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
@@ -140,13 +144,25 @@ impl System {
 
         let requirements = match module_id {
             Module::Sampler(_) => {
-                procedural_generation::modules::samplers::get_requirements(craft_levels)
+                if let Ok(stats) = SamplerStats::from_properties(craft_levels) {
+                    stats.get_requirements()
+                } else {
+                    return;
+                }
             }
             Module::Scanner(_) => {
-                procedural_generation::modules::scanners::get_requirements(craft_levels)
+                if let Ok(stats) = ScannerStats::from_properties(craft_levels) {
+                    stats.get_requirements()
+                } else {
+                    return;
+                }
             }
             Module::Sensor(_) => {
-                procedural_generation::modules::sensors::get_requirements(craft_levels)
+                if let Ok(stats) = SensorStats::from_properties(craft_levels) {
+                    stats.get_requirements()
+                } else {
+                    return;
+                }
             }
         };
 
@@ -155,13 +171,14 @@ impl System {
         }
 
         for (i, requirement) in requirements.iter().enumerate() {
-            let (resource_type, quantity) = *requirement;
+            let (req_resource, req_quantity) = requirement;
 
-            if resource_type != resources[i].resource_type {
+            //discriminant is used to compare enum variants, disregarding struct values
+            if mem::discriminant(req_resource) != mem::discriminant(&resources[i]) {
                 return;
             }
 
-            if !inv.resources.has_enough(&resources[i], quantity) {
+            if !inv.resources.has_enough(&resources[i], *req_quantity) {
                 return;
             }
         }

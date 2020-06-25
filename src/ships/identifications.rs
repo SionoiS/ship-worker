@@ -1,4 +1,4 @@
-use crate::id_types::{Ship, User};
+use procedural_generation::id_types::{Ship, User};
 use std::collections::HashMap;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};

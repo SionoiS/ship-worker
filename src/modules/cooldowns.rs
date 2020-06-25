@@ -1,4 +1,4 @@
-use crate::id_types::Module;
+use procedural_generation::id_types::Module;
 use std::collections::HashMap;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};

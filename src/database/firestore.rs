@@ -1,5 +1,5 @@
-use crate::id_types::Ship;
 use nalgebra::Point3;
+use procedural_generation::id_types::Ship;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread;

@@ -1,8 +1,8 @@
-use crate::id_types::{Module, Resource, Ship};
 use crate::inventory::{Inventories, SystemMessage as InvMsg};
 use crate::modules::cooldowns::{Cooldowns, SystemMessage as CooldownMsg};
 use crate::ships::exploration::Asteroids;
 use crate::spatial_os::connexion::{CommandRequest, SystemMessage as SpatialOSMsg};
+use procedural_generation::id_types::{Module, Resource, Ship};
 use procedural_generation::modules::samplers::SamplerStats;
 use std::collections::HashMap;
 use std::sync::mpsc;
@@ -104,7 +104,10 @@ impl System {
 
         let props = self.inventories.get_module_properties(ship_id, sampler_id);
         let sampler = match props {
-            Some(props) => SamplerStats::from_properties(&props),
+            Some(props) => match SamplerStats::from_properties(&props) {
+                Ok(sampler) => sampler,
+                Err(_) => return,
+            },
             None => return,
         };
 

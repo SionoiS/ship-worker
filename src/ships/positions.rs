@@ -1,7 +1,7 @@
 use crate::database::firestore::SystemMessage as DatabaseMsg;
-use crate::id_types::Ship;
 use crate::spatial_os::connexion::{CommandRequest, SystemMessage as SpatialOSMsg};
 use nalgebra::{Point2, Point3};
+use procedural_generation::id_types::Ship;
 use procedural_generation::world::asteroids::grid_cell_from_position;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc;

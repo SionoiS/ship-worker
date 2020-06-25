@@ -1,6 +1,6 @@
-use crate::id_types::{Asteroid, Resource, Ship, User};
 use crate::inventory::Inventory;
 use nalgebra::Point2;
+use procedural_generation::id_types::{Asteroid, Resource, Ship, User};
 use procedural_generation::modules::samplers::SamplerStats;
 use procedural_generation::modules::scanners::ScannerStats;
 use std::sync::mpsc;

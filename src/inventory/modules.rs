@@ -1,4 +1,4 @@
-use crate::id_types::{Module, Resource, User};
+use procedural_generation::id_types::{Module, Resource, User};
 use std::collections::HashMap;
 use std::num::NonZeroI32;
 use std::num::NonZeroU32;

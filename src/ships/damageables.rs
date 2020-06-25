@@ -1,5 +1,5 @@
-use crate::id_types::Ship;
 use crate::spatial_os::connexion::{SystemMessage as SpatialOSMsg, UpdateComponent};
+use procedural_generation::id_types::Ship;
 use std::collections::HashMap;
 use std::num::NonZeroU32;
 use std::sync::mpsc;
